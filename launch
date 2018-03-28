@@ -173,7 +173,7 @@ while :; do
             exit
             ;;
         -n|--foreground)
-            shif
+            shift
             FOREGROUND="NOT_NULL"
             ;;
         start)
