@@ -12,36 +12,39 @@
 ### END INIT INFO
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# constants
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
+# constants for color if output is tty
+if [ -t 1 ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    NC='\033[0m'
+fi
 
 # name of new session
 TMUX_SESSION_NAME="test"
 # if user does not exists -> error "No passwd entry for user '${USER}'"
 USER="root"
-# program to run or "" for the setup function -> need to be modified
+# program which will be launched; if it is "" the setup function will be called and is should start the program(s)
 PROGRAM="while"
 ARGS="true; do date && sleep 1; done"
 
-# returncode if not has session ${TMUX_SESSION_NAME}
-has_session () {
-    tmux has-session -t ${TMUX_SESSION_NAME} 2>/dev/null
-}
-
-# only fired if no program defined
+# only fired if no program defined # should start the commands by setting them in a pane instead of typing them
+# this is important for the restart options # view example
 setup () {
     # split window and start given command
-    tmux split-window -h -t ${TMUX_SESSION_NAME}:0 'node <<< "console.log(process, new Date())"'
+    tmux split-window -h -t "${TMUX_SESSION_NAME}:0" 'while true; do echo "example code" && sleep 1; done'
 
     # start command on other pane (was there from beginning)
-    tmux respawn-pane -k -t ${TMUX_SESSION_NAME}:0.0 'node <<< "console.log(process, new Date())"'
+    tmux respawn-pane -k -t "${TMUX_SESSION_NAME}:0.0" 'node <<< "console.log(process, new Date())"'
+}
+
+# returncode if not has session ${TMUX_SESSION_NAME}
+has_session () {
+    tmux has-session -t "${TMUX_SESSION_NAME}" 2>/dev/null
 }
 
 status_panes () {
-    tmux list-panes -t ${TMUX_SESSION_NAME} | \
+    tmux list-panes -t "${TMUX_SESSION_NAME}" | \
         grep "(dead)" | \
         cut -d ':' -f 1 | \
         sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/,/g' # replaces '\n' with ','
@@ -53,13 +56,13 @@ stop_session () {
 
 create_session () {
     # create new session
-    tmux new-session -d -s ${TMUX_SESSION_NAME} -n ${TMUX_SESSION_NAME}
-    tmux set -t ${TMUX_SESSION_NAME} -q remain-on-exit on
-    tmux set -t ${TMUX_SESSION_NAME} -q mode-mouse on
-    tmux set -t ${TMUX_SESSION_NAME} -q mode-select-pane on
-    tmux set -t ${TMUX_SESSION_NAME} -q mouse on
+    tmux new-session -d -s "${TMUX_SESSION_NAME}" -n "${TMUX_SESSION_NAME}"
+    tmux set -t "${TMUX_SESSION_NAME}" -q remain-on-exit on
+    tmux set -t "${TMUX_SESSION_NAME}" -q mode-mouse on
+    tmux set -t "${TMUX_SESSION_NAME}" -q mode-select-pane on
+    tmux set -t "${TMUX_SESSION_NAME}" -q mouse on
     if [ "${PROGRAM}" ]; then
-        tmux respawn-pane -k -t ${TMUX_SESSION_NAME}:0.0 " ${PROGRAM} ${ARGS}"
+        tmux respawn-pane -k -t "${TMUX_SESSION_NAME}:0.0" " ${PROGRAM} ${ARGS}"
     else
         setup
     fi
@@ -67,18 +70,18 @@ create_session () {
 
 # validate it is the last arg
 _val () {
-    if [ ${@} ]; then
+    if [ "${@}" ]; then
         _usage
         exit 1
     fi
 }
 
 _usage () {
-    echo "USAGE: $(basename ${0})\t[-n|--foreground]\n\t\t[-h|--help]\n\t\tOPTION"
+    echo "USAGE: $(basename ${0})\t[-f|--foreground]\n\t\t[-h|--help]\n\t\tOPTION"
     echo "OPTION:\tstart:\tstarts session if not running"
     echo "\tstop:\tstops session if running"
     echo "\tstatus:\tgives status (of session)"
-    echo "\tconsole:connects to session\n\t\t\tQuitting without stopping window:\n\t\t\tC-b  C-d\n\t\t\tQuitting with stopping the window:\n\t\t\tC-b  &  y\n\t\t\twindow is mostly enough to kill the session, if not\n\t\t\tC-b  :  kill-session  Enter"
+    echo "\tconsole:connects to session\n\t\t\tQuitting without stopping window:\n\t\t\tC-b  d  (C = ctrl)\n\t\t\tQuitting with stopping the window:\n\t\t\tC-b  &  y\n\t\t\twindow is mostly enough to kill the session, if not\n\t\t\tC-b  :  kill-session  Enter"
     echo "\trestart:restarts session can have option -s or -ss for soft or even softer restart"
 }
 
@@ -116,11 +119,11 @@ _stop () {
 
 _restart () {
     echo -n "restarting ${1}soft... "
-    tmux list-pane -t ${TMUX_SESSION_NAME} | \
+    tmux list-pane -t "${TMUX_SESSION_NAME}" | \
         grep "${2}" | \
         cut -d ':' -f 1 | \
         while IFS= read -r i; do
-            tmux respawn-pane -k -t ${TMUX_SESSION_NAME}:0.${i}
+            tmux respawn-pane -k -t "${TMUX_SESSION_NAME}:0.${i}"
         done && echo "${GREEN}DONE${NC}" || echo "${RED}FAILED${NC}"
     [ "${FOREGROUND}" ] && _attach_to_session
 }
@@ -147,13 +150,16 @@ _get_status () {
 F_DEP="$(which basename >/dev/null 2>&1 || echo "sudo apt-get install basename;"; \
             which cut >/dev/null 2>&1 || echo "sudo apt-get install cut;"; \
             which sed >/dev/null 2>&1 || echo "sudo apt-get install sed;"; \
+            which sh >/dev/null 2>&1 || echo "sudo apt-get install sh;"; \
+            which su >/dev/null 2>&1 || echo "sudo apt-get install su;"; \
+            which sudo >/dev/null 2>&1 || echo "sudo apt-get install sudo; # maybe this is a paradox"; \
             which tmux >/dev/null 2>&1 || echo "sudo apt-get install tmux;")"
 [ "${F_DEP}" ] && echo "${F_DEP}" && exit 1
 
 # check for right user privileges before editing the args
 if [ "${USER}" ] && [ "$(whoami)" != "${USER}" ]; then
-    sudo su ${USER} -c "${0} \"-internalTmux\" \"${TMUX}\" ${@}"
-    exit ${?}
+    sudo su "${USER}" -c "${0} \"-internalTmux\" \"${TMUX}\" \"$(echo ${@} | sed 's/ /" "/g')\""
+    exit "${?}"
 fi
 
 # runtime var # do not change
@@ -172,34 +178,34 @@ while :; do
             _usage
             exit
             ;;
-        -n|--foreground)
+        -f|--foreground)
             shift
             FOREGROUND="NOT_NULL"
             ;;
         start)
             shift
-            _val ${@}
+            _val "${@}"
             _start
-            exit ${?}
+            exit "${?}"
             ;;
         stop)
             shift
-            _val ${@}
+            _val "${@}"
             _stop
-            exit ${?}
+            exit "${?}"
             ;;
         status)
             shift
-            _val ${@}
+            _val "${@}"
             _get_status
-            exit ${?}
+            exit "${?}"
             ;;
         console)
             shift
-            _val ${@}
+            _val "${@}"
             if has_session; then
                 _attach_to_session || (echo "failed to attach" && exit 1)
-                exit ${?}
+                exit "${?}"
             else
                 echo "not running"
                 exit 2
