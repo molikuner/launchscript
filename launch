@@ -213,16 +213,17 @@ while :; do
             ;;
         restart)
             shift
-            [ ! "${1}" ] && _stop && _start || ([ "${1}" ] && has_session && \
-                ( [ "${1}" = "-s" ] && ( \
+            # normal restart
+            [ ! "${1}" ] && ( _stop && _start || exit 0 ) || \
+                ( ( has_session || ( echo "${RED}FAILED${NC} not running -> no soft restart" && exit 1 ) ) && \
                     # soft restart
-                    _restart "" ":" || exit 0) || \
-                ([ "${1}" = "-ss" ] && ( \
-                    # really soft restart
-                    _restart "really " "(dead)")) \
+                    ( [ "${1}" = "-s" ] && ( _restart "" ":" || exit 0 ) || \
+                        # really soft restart
+                        ( [ "${1}" = "-ss" ] && ( _restart "really " "(dead)" ) \
+                    ) \
                 ) \
             )
-            exit 0
+            exit "${?}"
             ;;
         *)
             # if no option or invalid arg
